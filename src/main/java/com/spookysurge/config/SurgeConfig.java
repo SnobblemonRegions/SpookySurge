@@ -16,7 +16,7 @@ public final class SurgeConfig {
 
     /** The event window, as UTC instants. Automatic surges only start inside it. */
     public String windowStart = "2026-10-31T04:00:00Z";
-    public String windowEnd = "2026-11-03T05:00:00Z";
+    public String windowEnd = "2026-11-07T05:00:00Z";
 
     /** Local clock times (HH:mm) in {@link #timezone} at which a surge starts each day of the window. */
     public String timezone = "America/New_York";
