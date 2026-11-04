@@ -83,6 +83,9 @@ final class WorldBossCandy {
         Map<UUID, Integer> owed = payouts(damage, SurgeManager.config().worldBossCandy);
         owed.forEach((player, amount) -> state.pending.merge(player, amount, Integer::sum));
         state.setDirty();
+        // The boss is marked paid and the debts are on disk before any item is handed out: CobbleRaids may report this defeat again after a
+        // crash, and without this the rerun would pay everyone twice.
+        SurgeManager.flush(server);
         for (UUID id : owed.keySet()) {
             ServerPlayer online = server.getPlayerList().getPlayer(id);
             if (online != null) SurgeManager.claim(online);
