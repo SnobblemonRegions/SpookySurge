@@ -367,7 +367,8 @@ public final class SurgeManager {
         int amount = 0;
         if (result == RewardLedger.Result.PAID) {
             amount = SurgeMath.candyFor(rarity, state.maxTier, config);
-            give(player, amount);
+            int unfit = give(player, amount);
+            if (unfit > 0) hold(player, unfit);
         }
         creditedCount++;
         SpookySurge.LOG.info("Surge credit: {} took a {} {} (paid {} Candy Corn, counter {})",
@@ -463,14 +464,38 @@ public final class SurgeManager {
 
     // ---------------------------------------------------------------- Candy Corn delivery
 
-    private static void give(ServerPlayer player, int amount) {
-        if (amount <= 0) return;
-        int left = amount;
+    /**
+     * Puts as much of {@code amount} Candy Corn into the player's inventory as fits. Returns how many did NOT fit; the caller keeps those owed
+     * ({@link #hold}). Never drops it on the ground, where anyone could take it and it despawns, and never discards it: {@code Inventory.add}
+     * returns true when only part of a stack fitted and leaves the rest in the stack, so ignoring the stack afterwards loses the remainder.
+     */
+    private static int give(ServerPlayer player, int amount) {
+        int left = Math.max(0, amount);
         while (left > 0) {
-            int n = Math.min(64, left);
-            ItemStack stack = new ItemStack(SurgeItems.candyCorn(), n);
-            if (!player.getInventory().add(stack)) player.drop(stack, false);
-            left -= n;
+            ItemStack stack = new ItemStack(SurgeItems.candyCorn(), Math.min(64, left));
+            int before = stack.getCount();
+            player.getInventory().add(stack);
+            left -= before - stack.getCount();
+            if (!stack.isEmpty()) break;   // the inventory is full
+        }
+        return left;
+    }
+
+    /** Keeps Candy Corn that did not fit owed to the player, and tells them how to collect it. */
+    private static void hold(ServerPlayer player, int amount) {
+        state.pending.merge(player.getUUID(), amount, Integer::sum);
+        state.setDirty();
+        player.sendSystemMessage(Component.literal("Your inventory is full: " + amount
+                + " Candy Corn are waiting for you. Make room, then use /surge claim.").withStyle(ChatFormatting.GOLD));
+    }
+
+    /** Saves the state to disk now. Used before a payout is handed out, so that a crash cannot pay it twice. */
+    static void flush(MinecraftServer server) {
+        if (state == null || server == null) return;
+        try {
+            state.flush(server);
+        } catch (java.io.IOException ex) {
+            SpookySurge.LOG.error("Could not save the Spooky Surge state", ex);
         }
     }
 
@@ -479,11 +504,16 @@ public final class SurgeManager {
         if (state == null) return 0;
         Integer owed = state.pending.remove(player.getUUID());
         if (owed == null || owed <= 0) return 0;
-        give(player, owed);
-        player.sendSystemMessage(Component.literal("You received " + owed + " Candy Corn from the Spooky Surge.")
-                .withStyle(ChatFormatting.GOLD));
         state.setDirty();
-        return owed;
+        flush(player.getServer());   // the debt is cleared on disk before the items exist: a crash can lose this delivery, never repeat it
+        int unfit = give(player, owed);
+        int delivered = owed - unfit;
+        if (delivered > 0) {
+            player.sendSystemMessage(Component.literal("You received " + delivered + " Candy Corn from the Spooky Surge.")
+                    .withStyle(ChatFormatting.GOLD));
+        }
+        if (unfit > 0) hold(player, unfit);
+        return owed;   // what was handled, delivered or kept owed: the command says "nothing waiting" only when there was nothing
     }
 
     private static void onJoin(ServerPlayer player) {

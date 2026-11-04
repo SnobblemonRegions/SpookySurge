@@ -40,6 +40,16 @@ public final class SurgeState extends SavedData {
         return new SavedData.Factory<>(SurgeState::new, SurgeState::load, DataFixTypes.LEVEL);
     }
 
+    /**
+     * Writes this state to disk now, and nothing else (the ordinary autosave still covers it, and no other mod's store is dragged along).
+     * Called before Candy Corn is handed out, so a crash can lose one delivery but never repeat it.
+     */
+    public void flush(MinecraftServer server) throws java.io.IOException {
+        java.nio.file.Path dataDir = server.getWorldPath(net.minecraft.world.level.storage.LevelResource.ROOT).resolve("data");
+        java.nio.file.Files.createDirectories(dataDir);
+        save(dataDir.resolve(FILE_ID + ".dat").toFile(), server.registryAccess());
+    }
+
     public static SurgeState get(MinecraftServer server) {
         return server.overworld().getDataStorage().computeIfAbsent(factory(), FILE_ID);
     }
