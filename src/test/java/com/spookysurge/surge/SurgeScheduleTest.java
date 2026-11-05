@@ -9,7 +9,7 @@ import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 class SurgeScheduleTest {
-    private final SurgeConfig config = new SurgeConfig(); // 20:00 New York, window 2026-10-31T04Z..2026-11-07T05Z
+    private final SurgeConfig config = new SurgeConfig(); // 20:00 New York, window 2026-10-31T04Z..2026-11-09T05Z
 
     // 20:00 EDT on 2026-10-31 is 00:00Z on 2026-11-01.
     private static final Instant SLOT = Instant.parse("2026-11-01T00:00:00Z");
@@ -17,7 +17,7 @@ class SurgeScheduleTest {
     @Test
     void nothingIsDueOutsideTheWindow() {
         assertTrue(SurgeSchedule.due(Instant.parse("2026-10-30T23:59:00Z"), config, Set.of()).isEmpty());
-        assertTrue(SurgeSchedule.due(Instant.parse("2026-11-07T05:00:00Z"), config, Set.of()).isEmpty());
+        assertTrue(SurgeSchedule.due(Instant.parse("2026-11-09T05:00:00Z"), config, Set.of()).isEmpty());
     }
 
     @Test
